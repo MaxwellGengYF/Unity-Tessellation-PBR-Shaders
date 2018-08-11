@@ -210,13 +210,12 @@ inline UnityTessellationFactors hsconst_surf (InputPatch<InternalTessInterp_appd
   UnityTessellationFactors o;
   float3 tf = (tessDist(v[0].vertex, v[1].vertex, v[2].vertex));
   float3 objCP = mul(unity_WorldToObject, float4(_WorldSpaceCameraPos,1)).xyz;
-  float3 dir = step(0, float3(dot(normalize(objCP - v[0].vertex), v[0].normal), dot(normalize(objCP - v[1].vertex), v[1].normal), dot(normalize(objCP - v[2].vertex), v[2].normal)));
-  tf = lerp(0, tf, saturate(dir.x + dir.y + dir.z));
+  bool3 dir = 0 < float3(dot(normalize(objCP - v[0].vertex), v[0].normal), dot(normalize(objCP - v[1].vertex), v[1].normal), dot(normalize(objCP - v[2].vertex), v[2].normal));
+  tf = (dir.x + dir.y + dir.z) ? tf : 0;
   o.edge[0] = tf.x;
   o.edge[1] = tf.y;
   o.edge[2] = tf.z;
   o.inside = (tf.x + tf.y + tf.z) * 0.33333333;
-
   return o;
 }
 
@@ -759,18 +758,12 @@ struct v2f_surf {
   float4 tSpace0 : TEXCOORD1;
   float4 tSpace1 : TEXCOORD2;
   float4 tSpace2 : TEXCOORD3;
-#ifndef DIRLIGHTMAP_OFF
-  half3 viewDir : TEXCOORD4;
-#endif
   float4 lmap : TEXCOORD5;
 #ifndef LIGHTMAP_ON
   #if UNITY_SHOULD_SAMPLE_SH && !UNITY_SAMPLE_FULL_SH_PER_PIXEL
     half3 sh : TEXCOORD6; // SH
   #endif
 #else
-  #ifdef DIRLIGHTMAP_OFF
-    float4 lmapFadePos : TEXCOORD6;
-  #endif
 #endif
 
     #if USE_DETAILALBEDO
@@ -808,11 +801,7 @@ inline v2f_surf vert_surf (appdata_tess v) {
   o.tSpace2 = (float4(worldTangent.z, worldBinormal.z, worldNormal.z, worldPos.z));
     
   float3 viewDirForLight = (UnityWorldSpaceViewDir(worldPos));
-  #ifndef DIRLIGHTMAP_OFF
-  o.viewDir.x = dot(viewDirForLight, worldTangent);
-  o.viewDir.y = dot(viewDirForLight, worldBinormal);
-  o.viewDir.z = dot(viewDirForLight, worldNormal);
-  #endif
+
 #ifdef DYNAMICLIGHTMAP_ON
   o.lmap.zw = v.texcoord2.xy * unity_DynamicLightmapST.xy + unity_DynamicLightmapST.zw;
 #else
@@ -820,10 +809,6 @@ inline v2f_surf vert_surf (appdata_tess v) {
 #endif
 #ifdef LIGHTMAP_ON
   o.lmap.xy = v.texcoord1.xy * unity_LightmapST.xy + unity_LightmapST.zw;
-  #ifdef DIRLIGHTMAP_OFF
-    o.lmapFadePos.xyz = (worldPos.xyz - unity_ShadowFadeCenterAndType.xyz) * unity_ShadowFadeCenterAndType.w;
-    o.lmapFadePos.w = (-UnityObjectToViewPos(v.vertex).z) * (1.0 - unity_ShadowFadeCenterAndType.w);
-  #endif
 #else
   o.lmap.xy = 0;
     #if UNITY_SHOULD_SAMPLE_SH && !UNITY_SAMPLE_FULL_SH_PER_PIXEL
@@ -871,10 +856,9 @@ inline void frag_surf (v2f_surf IN,
     out half4 outGBuffer1 : SV_Target1,
     out half4 outGBuffer2 : SV_Target2,
     out half4 outEmission : SV_Target3
+    #if defined(SHADOWS_SHADOWMASK) && (UNITY_ALLOWED_MRT_COUNT > 4)
     , out half4 outShadowMask : SV_Target4
-	, out half4 outTest : SV_Target5
-	, out half4 outTest2 : SV_Target6
-	, out half4 outTest3 : SV_Target7
+#endif
 ) {
   UNITY_SETUP_INSTANCE_ID(IN);
   // prepare and unpack data
@@ -942,10 +926,6 @@ inline void frag_surf (v2f_surf IN,
   #ifndef UNITY_HDR_ON
   outEmission.rgb = exp2(-outEmission.rgb);
   #endif
-  outShadowMask = half4(0, 0, 0, 0);
-  outTest = half4(1, 0, 0, 1);
-  outTest2 = half4(0, 1, 0, 1);
-  outTest3 = half4(0, 0, 1, 1);
 }
 
 

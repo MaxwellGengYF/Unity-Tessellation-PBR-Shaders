@@ -98,7 +98,7 @@ Material:
     - _SpecularColor: 0
     - _SpecularHighlights: 1
     - _SrcBlend: 1
-    - _Tessellation: 63
+    - _Tessellation: 10.3
     - _UVSec: 0
     - _VertexOffset: 0
     - _VertexScale: 0.005
